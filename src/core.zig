@@ -1,24 +1,6 @@
 const std = @import("std");
 const testing = std.testing;
-
-const ArrayIterator = @import("./iterators/array.zig").ArrayIterator;
-const SliceIterator = @import("./iterators/slice.zig").SliceIterator;
-
-pub fn TypeOfIterator(comptime Iter: type) type {
-    comptime const nextDecl = std.meta.declarationInfo(Iter, "next");
-
-    if (comptime nextDecl.data != .Fn) {
-        @compileError("Iterator 'next' declaration is not a function");
-    }
-
-    return std.meta.Child(nextDecl.data.Fn.return_type);
-}
-
-test "TypeOfIterator" {
-    try testing.expect(TypeOfIterator(TestIterator(usize, .{})) == usize);
-    try testing.expect(TypeOfIterator(TestIterator(i32, .{})) == i32);
-    try testing.expect(TypeOfIterator(TestIterator(i32, .{})) != usize);
-}
+const itt_meta = @import("./meta.zig");
 
 /// Takes a struct and merges the declarations into one single struct
 /// Currently is unused because Zig does not support creating structs
@@ -63,8 +45,28 @@ pub fn MergedOperators(comptime Operators: anytype, comptime Itt: type) type {
 /// Should be embedded (with usingnamespace) by every operator that returns an Iterator themselves
 /// See the `map` or `filter` operators for examples
 pub fn IttGeneric(comptime operators: fn (type) type, comptime Itt: type) type {
+    const ElemMixin = struct {
+        pub const Elem = itt_meta.Elem(Itt);
+    };
+
+    const ErrorSetMixin = struct {
+        pub const ErrorSet = itt_meta.ErrorSet(Itt);
+    };
+
     return struct {
         pub const Operators = operators;
+
+        // Elem Declaration
+        pub usingnamespace if (!@hasDecl(Itt, "Elem"))
+            ElemMixin
+        else
+            struct {};
+
+        // ErrorSet Declaration
+        pub usingnamespace if (!@hasDecl(Itt, "ErrorSet"))
+            ErrorSetMixin
+        else
+            struct {};
 
         pub usingnamespace Operators(Itt);
     };
@@ -81,7 +83,7 @@ pub fn IttBase(comptime Operators: anytype, comptime SourceIterator: type) type 
         source: SourceIterator,
 
         pub const Source = SourceIterator;
-        pub const Elem = TypeOfIterator(SourceIterator);
+        pub const Elem = itt_meta.Elem(SourceIterator);
 
         pub fn init(source: SourceIterator) @This() {
             return .{
@@ -89,7 +91,7 @@ pub fn IttBase(comptime Operators: anytype, comptime SourceIterator: type) type 
             };
         }
 
-        pub fn next(self: *@This()) ?Elem {
+        pub fn next(self: *@This()) itt_meta.ReturnType(SourceIterator) {
             return self.source.next();
         }
 
@@ -97,43 +99,15 @@ pub fn IttBase(comptime Operators: anytype, comptime SourceIterator: type) type 
     };
 }
 
-/// Infers the iterator type for a given value type.
-/// If given an array or slice, creates an iterator type for them sepcifically
-/// Otherwise assumes the given value is a structure with a `.next()` method that behaves
-/// like an iterator
-pub fn InferredIteratorType(comptime Src: type) type {
-    const type_info = @typeInfo(Src);
-
-    if (type_info == .Array) {
-        return ArrayIterator(type_info.Array.child, type_info.Array.len);
-    } else if (type_info == .Pointer and type_info.Pointer.size == .Slice) {
-        return SliceIterator(type_info.Pointer.child);
-    } else {
-        return Src;
-    }
-}
-
 /// Utility to create a factory function for a given set of operators
 /// If given an array or slice, creates an iterator structure for them automatically
 /// Otherwise assumes the given value is a structure with a `.next()` method that behaves
 /// like an iterator
-pub fn IttFactory(comptime Operators: anytype) type {
+pub fn IttFactory(comptime Operators: anytype, comptime Generators: anytype) type {
     return struct {
-        pub fn itt(src: anytype) IttBase(Operators, InferredIteratorType(@TypeOf(src))) {
-            var iter: InferredIteratorType(@TypeOf(src)) = undefined;
+        pub const meta = itt_meta;
 
-            const type_info = @typeInfo(@TypeOf(src));
-
-            if (type_info == .Array) {
-                iter = ArrayIterator(type_info.Array.child, type_info.Array.len).init(src);
-            } else if (type_info == .Pointer and type_info.Pointer.size == .Slice) {
-                iter = SliceIterator(type_info.Pointer.child).init(src);
-            } else {
-                iter = src;
-            }
-
-            return IttBase(Operators, InferredIteratorType(@TypeOf(src))).init(iter);
-        }
+        pub usingnamespace Generators(Operators);
     };
 }
 
@@ -155,47 +129,6 @@ test "IttBase" {
 
     try testing.expect(IttI32.Source == IteratorI32);
     try testing.expect(IttI32.Elem == i32);
-}
-
-test "IttFactory" {
-    const IteratorUsize = TestIterator(usize, .{ 1, 2, 3, 4 });
-    const itt = IttFactory(IttEmptyOperators).itt;
-
-    var iter = itt(IteratorUsize{});
-
-    try testing.expect(iter.next().? == 1);
-    try testing.expect(iter.next().? == 2);
-    try testing.expect(iter.next().? == 3);
-    try testing.expect(iter.next().? == 4);
-    try testing.expect(iter.next() == null);
-}
-
-test "IttFactory array" {
-    const itt = IttFactory(IttEmptyOperators).itt;
-
-    const array = [_]usize{ 1, 2, 3, 4 };
-
-    var iter = itt(array);
-
-    try testing.expect(iter.next().? == 1);
-    try testing.expect(iter.next().? == 2);
-    try testing.expect(iter.next().? == 3);
-    try testing.expect(iter.next().? == 4);
-    try testing.expect(iter.next() == null);
-}
-
-test "IttFactory slice" {
-    const itt = IttFactory(IttEmptyOperators).itt;
-
-    const array = [_]usize{ 1, 2, 3, 4 };
-
-    var iter = itt(@as([]const usize, &array));
-
-    try testing.expect(iter.next().? == 1);
-    try testing.expect(iter.next().? == 2);
-    try testing.expect(iter.next().? == 3);
-    try testing.expect(iter.next().? == 4);
-    try testing.expect(iter.next() == null);
 }
 
 pub fn TestIterator(comptime T: type, comptime values: anytype) type {

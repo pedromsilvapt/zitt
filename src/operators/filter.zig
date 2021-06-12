@@ -1,4 +1,5 @@
 const IttGeneric = @import("../core.zig").IttGeneric;
+const meta = @import("../meta.zig");
 
 pub fn FilterOperator(comptime Itt: type) type {
     return struct {
@@ -26,16 +27,26 @@ pub fn FilterIterator(comptime Itt: type, comptime Predicate: type, comptime Con
         pub const Elem = Itt.Elem;
 
         pub fn next(self: *@This()) ?Elem {
-            while (self.source.next()) |value| {
-                var pass: bool = false;
-                if (Context == void) {
-                    pass = self.predicate(value);
-                } else {
-                    pass = self.predicate(context, value);
-                }
+            while (true) {
+                // Respect source iterators that may fail
+                var value_optional = if (Itt.ErrorSet != null)
+                    try self.source.next()
+                else
+                    self.source.next();
 
-                if (pass) {
-                    return value;
+                if (value_optional) |value| {
+                    var pass: bool = false;
+                    if (Context == void) {
+                        pass = self.predicate(value);
+                    } else {
+                        pass = self.predicate(context, value);
+                    }
+
+                    if (pass) {
+                        return value;
+                    }
+                } else {
+                    break;
                 }
             }
 

@@ -1,4 +1,5 @@
 const std = @import("std");
+const meta = @import("../meta.zig");
 const IttGeneric = @import("../core.zig").IttGeneric;
 
 pub fn MapOperator(comptime Itt: type) type {
@@ -36,8 +37,14 @@ pub fn MapIterator(comptime Itt: type, comptime Transform: type, comptime Contex
         pub const Source = Itt;
         pub const Elem = @typeInfo(Transform).Fn.return_type.?;
 
-        pub fn next(self: *@This()) ?Elem {
-            if (self.source.next()) |value| {
+        pub fn next(self: *@This()) meta.AutoReturn(Itt.ErrorSet, Elem) {
+            // Respect source iterators that may fail
+            var value_optional = if (Itt.ErrorSet != null)
+                try self.source.next()
+            else
+                self.source.next();
+
+            if (value_optional) |value| {
                 if (Context == void) {
                     return self.transform(value);
                 } else {

@@ -26,7 +26,7 @@ test {
         Number{ .value = 3 },
     };
 
-    var iter = itt(array)
+    var iter = itt.from(array)
         .mapField(.value)
         .map(square)
         .mapCtx(add, @as(i32, 2));
@@ -52,6 +52,7 @@ pub fn add(constant: i32, number: i32) i32 {
 ## Custom Operators
 ```zig
 const IttGeneric = @import("zitt").IttGeneric;
+const meta = @import("zitt").meta;
 
 /// First we need to create a new operator. Usually each operator can have one
 /// or more chainable functions (in this case, one called `take`) and a 
@@ -73,18 +74,14 @@ fn MyCustomTakeOperator(comptime Itt: type) type {
             number: usize,
             consumed: usize = 0,
 
-            /// Each chainable iterator also needs two public declarations
-            /// The source type, and the Elem type
+            /// Each chainable iterator also needs this as a public declaration
+            /// This is the type of the source iterator that this operator was built for
             pub const Source = Itt;
-            /// In this case we can just reuse the element from our Source type
-            /// Because we will not change the type of the values returned
-            /// by the iterator, just how many values are returned
-            pub const Elem = Itt.Elem;
 
             /// The final piece required of each iterator is, of course, the
             /// `next` method. It should always receive only a pointer to itself,
             /// and return an optional Elem
-            pub fn next(self: *Iterator) ?Elem {
+            pub fn next(self: *Iterator) meta.AutoReturn(Itt.ErrorSet, Itt.Elem) {
                 if (self.consumed < self.number) {
                     self.consumed += 1;
 
@@ -94,7 +91,10 @@ fn MyCustomTakeOperator(comptime Itt: type) type {
                     // has been exhausted/emptied. This is fine because all
                     // iterators should return null all the time after being
                     // emptied, and in this case we can take advantage of that
-                    return self.source.next();
+                    return if (Itt.ErrorSet != null)
+                        try self.source.next()
+                    else
+                        self.source.next();
                 }
 
                 return null;
@@ -108,11 +108,22 @@ fn MyCustomTakeOperator(comptime Itt: type) type {
     };
 }
 
-// Now that our custom operator and iterator has been created, we can create
-// our very own `itt` function with all the base operators, if we want so,
-// as well as all of our custom operators (in this case, MyCustomTakeOperator)
+// Then we can, on the ***root Zig file* of our application, declare a public function
+// to include our custom operator method. This function should return a struct,
+// where every declaration of this struct will be available in the chainable iterators
+pub fn IttCustomOperators(comptime Itt: type) type {
+    return struct {
+        pub usingnamespace MyCustomTakeOperator(Itt);
+    };
+}
+
+// An alternative to this approach is to use the IttFactory
+// This gives us more customization options, such as being able to use
+// different operators in different situations, or even not including the base
+// operators
 const IttFactory = @import("zitt").IttFactory;
 const IttBaseOperators = @import("zitt").IttBaseOperators;
+const IttBaseGenerators = @import("zitt").IttBaseGenerators;
 
 /// This function merges the base operators as well as our custom operator
 /// Note that this is a generic function, just like our operator. This is 
@@ -120,7 +131,7 @@ const IttBaseOperators = @import("zitt").IttBaseOperators;
 /// are called for. This has some neat advantages, such as being able to declare
 /// different operators for different sources (for example, have a `sum()` be
 /// available only for cases when Itt.Elem is a numeric type).
-fn IttCustomOperators(comptime Itt: type) type {
+fn IttCustomLocalOperators(comptime Itt: type) type {
     return struct {
         pub usingnamespace IttBaseOperators(Itt);
         pub usingnamespace MyCustomTakeOperator(Itt);
@@ -128,7 +139,7 @@ fn IttCustomOperators(comptime Itt: type) type {
 }
 
 /// Create the wrapper function, by giving it the operators
-const itt = IttFactory(IttCustomOperators).itt;
+const custom_itt = IttFactory(IttCustomLocalOperators, IttBaseGenerators);
 
 test {
     var array = [_]Number{
@@ -137,7 +148,8 @@ test {
         Number{ .value = 3 },
     };
 
-    var iter = itt(array).take(2);
+    var iter = custom_itt.from(array)
+        .take(2);
 
     try expect(iter.next().?.value == 1);
     try expect(iter.next().?.value == 2);
