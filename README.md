@@ -17,7 +17,9 @@ operators.
 
 ## Usage
 ```zig
-const itt = @import("zitt").itt;
+const std = @import("std");
+const expect = std.testing.expect;
+const itt = @import("zitt");
 
 test {
     var array = [_]Number{
