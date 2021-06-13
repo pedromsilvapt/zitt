@@ -1,5 +1,9 @@
 const IttBase = @import("../core.zig").IttBase;
 
+// Testing Imports
+const IttEmptyOperators = @import("../core.zig").IttEmptyOperators;
+const testing = @import("std").testing;
+
 pub fn SingleGenerator(comptime Operators: anytype) type {
     return struct {
         pub fn single(value: anytype) IttBase(Operators, SingleIterator(@TypeOf(value))) {
@@ -31,4 +35,16 @@ pub fn SingleIterator(comptime Elem: type) type {
             return null;
         }
     };
+}
+
+test "Iterator single" {
+    var iter = SingleGenerator(IttEmptyOperators).single(true);
+
+    try testing.expect(iter.next().? == true);
+    try testing.expect(iter.next() == null);
+
+    iter = SingleGenerator(IttEmptyOperators).single(false);
+
+    try testing.expect(iter.next().? == false);
+    try testing.expect(iter.next() == null);
 }

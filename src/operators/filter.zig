@@ -1,6 +1,11 @@
 const IttGeneric = @import("../core.zig").IttGeneric;
 const meta = @import("../meta.zig");
 
+// Testing Imports
+const testing = @import("std").testing;
+const itt = @import("../main.zig");
+const TestIterator = @import("../core.zig").TestIterator;
+
 pub fn FilterOperator(comptime Itt: type) type {
     return struct {
         pub fn filter(iter: Itt, predicate: anytype) FilterIterator(Itt, @TypeOf(predicate), void) {
@@ -55,4 +60,19 @@ pub fn FilterIterator(comptime Itt: type, comptime Predicate: type, comptime Con
 
         pub usingnamespace IttGeneric(Itt.Operators, @This());
     };
+}
+
+fn is_even_usize(a: usize) bool {
+    return a % 2 == 0;
+}
+
+test "itt filter is_even" {
+    const IteratorUsize = TestIterator(usize, .{ 1, 2, 3, 4 });
+
+    var iterator = itt.from(IteratorUsize{})
+        .filter(is_even_usize);
+
+    try testing.expect(iterator.next().? == 2);
+    try testing.expect(iterator.next().? == 4);
+    try testing.expect(iterator.next() == null);
 }

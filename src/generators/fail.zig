@@ -1,4 +1,7 @@
 const IttBase = @import("../core.zig").IttBase;
+// Testing Imports
+const IttEmptyOperators = @import("../core.zig").IttEmptyOperators;
+const testing = @import("std").testing;
 
 pub fn FailGenerator(comptime Operators: anytype) type {
     return struct {
@@ -24,4 +27,11 @@ pub fn FailIterator(comptime ErrorSet: type) type {
             return self.error_value;
         }
     };
+}
+
+test "IttFactory fail" {
+    var iter = FailGenerator(IttEmptyOperators).fail(error.CustomError);
+
+    try testing.expectError(error.CustomError, iter.next());
+    try testing.expectError(error.CustomError, iter.next());
 }

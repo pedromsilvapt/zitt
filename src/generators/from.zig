@@ -1,4 +1,8 @@
 const IttBase = @import("../core.zig").IttBase;
+// Testing Imports
+const IttEmptyOperators = @import("../core.zig").IttEmptyOperators;
+const TestIterator = @import("../core.zig").TestIterator;
+const testing = @import("std").testing;
 
 pub fn FromGenerator(comptime Operators: anytype) type {
     return struct {
@@ -80,4 +84,40 @@ pub fn SliceIterator(comptime Elem: type) type {
             return null;
         }
     };
+}
+
+test "IttFactory from" {
+    const IteratorUsize = TestIterator(usize, .{ 1, 2, 3, 4 });
+
+    var iter = FromGenerator(IttEmptyOperators).from(IteratorUsize{});
+
+    try testing.expect(iter.next().? == 1);
+    try testing.expect(iter.next().? == 2);
+    try testing.expect(iter.next().? == 3);
+    try testing.expect(iter.next().? == 4);
+    try testing.expect(iter.next() == null);
+}
+
+test "IttFactory from array" {
+    const array = [_]usize{ 1, 2, 3, 4 };
+
+    var iter = FromGenerator(IttEmptyOperators).from(array);
+
+    try testing.expect(iter.next().? == 1);
+    try testing.expect(iter.next().? == 2);
+    try testing.expect(iter.next().? == 3);
+    try testing.expect(iter.next().? == 4);
+    try testing.expect(iter.next() == null);
+}
+
+test "IttFactory from slice" {
+    const array = [_]usize{ 1, 2, 3, 4 };
+
+    var iter = FromGenerator(IttEmptyOperators).from(@as([]const usize, &array));
+
+    try testing.expect(iter.next().? == 1);
+    try testing.expect(iter.next().? == 2);
+    try testing.expect(iter.next().? == 3);
+    try testing.expect(iter.next().? == 4);
+    try testing.expect(iter.next() == null);
 }
