@@ -25,9 +25,9 @@ pub fn Elem(comptime Itt: type) type {
 
 pub fn AutoReturn(comptime ErrorSetType: ?type, comptime ElemType: type) type {
     if (ErrorSetType == null or @typeInfo(ErrorSetType.?).ErrorSet.len == 0) {
-        return ?ElemType;
+        return ElemType;
     } else {
-        return ErrorSetType!?ElemType;
+        return ErrorSetType!ElemType;
     }
 }
 

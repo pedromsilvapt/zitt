@@ -83,7 +83,7 @@ fn MyCustomTakeOperator(comptime Itt: type) type {
             /// The final piece required of each iterator is, of course, the
             /// `next` method. It should always receive only a pointer to itself,
             /// and return an optional Elem
-            pub fn next(self: *Iterator) meta.AutoReturn(Itt.ErrorSet, Itt.Elem) {
+            pub fn next(self: *Iterator) meta.AutoReturn(Itt.ErrorSet, ?Itt.Elem) {
                 if (self.consumed < self.number) {
                     self.consumed += 1;
 

@@ -31,7 +31,7 @@ pub fn FilterIterator(comptime Itt: type, comptime Predicate: type, comptime Con
         pub const Source = Itt;
         pub const Elem = Itt.Elem;
 
-        pub fn next(self: *@This()) ?Elem {
+        pub fn next(self: *@This()) meta.AutoReturn(Itt.ErrorSet, ?Elem) {
             while (true) {
                 // Respect source iterators that may fail
                 var value_optional = if (Itt.ErrorSet != null)

@@ -42,7 +42,7 @@ pub fn MapIterator(comptime Itt: type, comptime Transform: type, comptime Contex
         pub const Source = Itt;
         pub const Elem = @typeInfo(Transform).Fn.return_type.?;
 
-        pub fn next(self: *@This()) meta.AutoReturn(Itt.ErrorSet, Elem) {
+        pub fn next(self: *@This()) meta.AutoReturn(Itt.ErrorSet, ?Elem) {
             // Respect source iterators that may fail
             var value_optional = if (Itt.ErrorSet != null)
                 try self.source.next()

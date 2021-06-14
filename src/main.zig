@@ -26,6 +26,9 @@ pub fn IttBaseOperators(comptime Itt: type) type {
         pub usingnamespace @import("./operators/map.zig").MapOperator(Itt);
         pub usingnamespace @import("./operators/filter.zig").FilterOperator(Itt);
 
+        // Queries
+        pub usingnamespace @import("./operators/queries/positional.zig").PositionalOperators(Itt);
+
         pub usingnamespace if (@hasDecl(root, "IttCustomOperators"))
             root.IttCustomOperators(Itt)
         else

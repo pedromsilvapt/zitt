@@ -45,28 +45,47 @@ pub fn MergedOperators(comptime Operators: anytype, comptime Itt: type) type {
 /// Should be embedded (with usingnamespace) by every operator that returns an Iterator themselves
 /// See the `map` or `filter` operators for examples
 pub fn IttGeneric(comptime operators: fn (type) type, comptime Itt: type) type {
-    const ElemMixin = struct {
+    // Elem
+    const default_elem = !@hasDecl(Itt, "Elem");
+    const ElemMixin = if (default_elem) struct {
         pub const Elem = itt_meta.Elem(Itt);
-    };
+    } else struct {};
 
-    const ErrorSetMixin = struct {
+    // ErrorSet
+    const default_error_set = !@hasDecl(Itt, "ErrorSet");
+    const ErrorSetMixin = if (default_error_set) struct {
         pub const ErrorSet = itt_meta.ErrorSet(Itt);
-    };
+    } else struct {};
+
+    // Reset
+    const default_reset = !@hasDecl(Itt, "reset") and
+        @hasDecl(Itt, "Source") and
+        @hasDecl(Itt.Source, "reset") and
+        @hasField(Itt, "source");
+    const ResetMixin = if (default_reset) struct {
+        pub fn reset(self: *Itt) void {
+            self.source.reset();
+        }
+    } else struct {};
+
+    // Deinit
+    const default_deinit = !@hasDecl(Itt, "deinit") and
+        @hasDecl(Itt, "Source") and
+        @hasDecl(Itt.Source, "deinit") and
+        @hasField(Itt, "source");
+    const DeinitMixin = if (default_deinit) struct {
+        pub fn deinit(self: *Itt) void {
+            self.source.deinit();
+        }
+    } else struct {};
 
     return struct {
         pub const Operators = operators;
 
-        // Elem Declaration
-        pub usingnamespace if (!@hasDecl(Itt, "Elem"))
-            ElemMixin
-        else
-            struct {};
-
-        // ErrorSet Declaration
-        pub usingnamespace if (!@hasDecl(Itt, "ErrorSet"))
-            ErrorSetMixin
-        else
-            struct {};
+        pub usingnamespace ElemMixin;
+        pub usingnamespace ErrorSetMixin;
+        pub usingnamespace ResetMixin;
+        pub usingnamespace DeinitMixin;
 
         pub usingnamespace Operators(Itt);
     };
