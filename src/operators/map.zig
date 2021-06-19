@@ -1,6 +1,8 @@
 const std = @import("std");
 const meta = @import("../meta.zig");
 const IttGeneric = @import("../core.zig").IttGeneric;
+const FieldExpr = @import("../expr.zig").FieldExpr;
+const MethodExpr = @import("../expr.zig").MethodExpr;
 
 // Testing Imports
 const testing = std.testing;
@@ -13,22 +15,36 @@ pub fn MapOperator(comptime Itt: type) type {
             return iter.mapCtx(transform, {});
         }
 
-        pub fn mapField(iter: Itt, comptime field: anytype) MapIterator(Itt, fn (self: Itt.Elem) std.meta.fieldInfo(Itt.Elem, field).field_type, void) {
-            comptime const FieldType = std.meta.fieldInfo(Itt.Elem, field).field_type;
-
-            return iter.map(struct {
-                pub fn function(self: Itt.Elem) FieldType {
-                    return @field(self, @tagName(field));
-                }
-            }.function);
-        }
-
         pub fn mapCtx(iter: Itt, transform: anytype, ctx: anytype) MapIterator(Itt, @TypeOf(transform), @TypeOf(ctx)) {
             return MapIterator(Itt, @TypeOf(transform), @TypeOf(ctx)){
                 .source = iter,
                 .transform = transform,
                 .context = ctx,
             };
+        }
+
+        pub fn mapField(iter: Itt, comptime field: anytype) MapFieldReturnType(field) {
+            comptime const Expr = FieldExpr(Itt.Elem, field);
+
+            return iter.mapCtx(Expr.apply, Expr{});
+        }
+
+        fn MapFieldReturnType(comptime field: anytype) type {
+            comptime const Expr = FieldExpr(Itt.Elem, field);
+
+            return MapIterator(Itt, fn (self: Itt.Elem, ctx: Expr) Expr.ReturnType, Expr);
+        }
+
+        pub fn mapMethod(iter: Itt, comptime method: anytype, args: anytype) MapMethodReturnType(method, @TypeOf(args)) {
+            comptime const Expr = MethodExpr(Itt.Elem, method, @TypeOf(args));
+
+            return iter.mapCtx(Expr.apply, Expr{ .args = args });
+        }
+
+        fn MapMethodReturnType(comptime method: anytype, comptime Args: type) type {
+            comptime const Expr = MethodExpr(Itt.Elem, method, Args);
+
+            return MapIterator(Itt, fn (self: Itt.Elem, ctx: Expr) Expr.ReturnType, Expr);
         }
     };
 }
@@ -53,7 +69,7 @@ pub fn MapIterator(comptime Itt: type, comptime Transform: type, comptime Contex
                 if (Context == void) {
                     return self.transform(value);
                 } else {
-                    return self.transform(self.context, value);
+                    return self.transform(value, self.context);
                 }
             }
 
@@ -83,6 +99,40 @@ test "itt map double" {
     try testing.expect(iterator.next().? == 4);
     try testing.expect(iterator.next().? == 6);
     try testing.expect(iterator.next().? == 8);
+    try testing.expect(iterator.next() == null);
+}
+
+test "itt mapField" {
+    const Struct = struct {
+        value: i32,
+    };
+
+    const IteratorStruct = TestIterator(Struct, .{ Struct{ .value = 2 }, Struct{ .value = 4 } });
+
+    var iterator = itt.from(IteratorStruct{})
+        .mapField(.value);
+
+    try testing.expect(iterator.next().? == 2);
+    try testing.expect(iterator.next().? == 4);
+    try testing.expect(iterator.next() == null);
+}
+
+test "itt mapMethod" {
+    const Struct = struct {
+        value: i32,
+
+        pub fn add(self: @This(), n: i32) i32 {
+            return self.value + n;
+        }
+    };
+
+    const IteratorStruct = TestIterator(Struct, .{ Struct{ .value = 2 }, Struct{ .value = 4 } });
+
+    var iterator = itt.from(IteratorStruct{})
+        .mapMethod(.add, .{3});
+
+    try testing.expect(iterator.next().? == 5);
+    try testing.expect(iterator.next().? == 7);
     try testing.expect(iterator.next() == null);
 }
 
