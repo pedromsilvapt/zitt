@@ -1,5 +1,7 @@
 const IttGeneric = @import("../core.zig").IttGeneric;
 const meta = @import("../meta.zig");
+const FieldExpr = @import("../expr.zig").FieldExpr;
+const MethodExpr = @import("../expr.zig").MethodExpr;
 
 // Testing Imports
 const testing = @import("std").testing;
@@ -18,6 +20,30 @@ pub fn FilterOperator(comptime Itt: type) type {
                 .predicate = predicate,
                 .context = ctx,
             };
+        }
+
+        pub fn filterField(iter: Itt, comptime field: anytype) FilterFieldReturnType(field) {
+            comptime const Expr = FieldExpr(Itt.Elem, field);
+
+            return iter.mapCtx(Expr.apply, Expr{});
+        }
+
+        fn FilterFieldReturnType(comptime field: anytype) type {
+            comptime const Expr = FieldExpr(Itt.Elem, field);
+
+            return FilterIterator(Itt, fn (self: Itt.Elem, ctx: Expr) bool, Expr);
+        }
+
+        pub fn filterMethod(iter: Itt, comptime method: anytype, args: anytype) FilterMethodReturnType(method, @TypeOf(args)) {
+            comptime const Expr = MethodExpr(Itt.Elem, method, @TypeOf(args));
+
+            return iter.mapCtx(Expr.apply, Expr{ .args = args });
+        }
+
+        fn FilterMethodReturnType(comptime method: anytype, comptime Args: type) type {
+            comptime const Expr = MethodExpr(Itt.Elem, method, Args);
+
+            return MapIterator(Itt, fn (self: Itt.Elem, ctx: Expr) bool, Expr);
         }
     };
 }
@@ -44,7 +70,7 @@ pub fn FilterIterator(comptime Itt: type, comptime Predicate: type, comptime Con
                     if (Context == void) {
                         pass = self.predicate(value);
                     } else {
-                        pass = self.predicate(context, value);
+                        pass = self.predicate(value, context);
                     }
 
                     if (pass) {

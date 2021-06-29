@@ -1,6 +1,26 @@
 const std = @import("std");
 const testing = std.testing;
 
+pub fn FnReturnType(comptime T: type) type {
+    const type_info = @typeInfo(T);
+
+    if (comptime type_info != .Fn) {
+        @compileError("Type info is not a function");
+    }
+
+    return type_info.Fn.return_type.?;
+}
+
+pub fn FnArgType(comptime T: type, comptime index: comptime_int) type {
+    const type_info = @typeInfo(T);
+
+    if (comptime type_info != .Fn) {
+        @compileError("Type info is not a function");
+    }
+
+    return type_info.Fn.args[index].arg_type.?;
+}
+
 pub fn ReturnType(comptime Itt: type) type {
     const next_decl = @typeInfo(@TypeOf(@field(Itt, "next")));
 
